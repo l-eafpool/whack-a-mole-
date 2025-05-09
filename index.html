@@ -1,0 +1,244 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>嚇鼠了神敲敲遊戲系統</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(to bottom, #4ade80, #16a34a);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    #game-container {
+      background: #78350f;
+      padding: 20px;
+      border-radius: 20px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    }
+    .hole {
+      width: 100px;
+      height: 100px;
+      background: #4b2e1a;
+      border-radius: 50%;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    canvas {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+    }
+    #score, #time {
+      font-size: 24px;
+      color: #fff;
+      margin: 10px 0;
+    }
+    #start-btn {
+      background: #f59e0b;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 18px;
+      transition: background 0.3s;
+    }
+    #start-btn:hover {
+      background: #d97706;
+    }
+    #start-btn:disabled {
+      background: #a1a1aa;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container" class="text-center">
+    <h1 class="text-4xl font-bold text-white mb-4">嚇鼠了神敲敲遊戲系統</h1>
+    <div id="score">分數: 0</div>
+    <div id="time">時間: 30</div>
+    <div class="grid grid-cols-3 gap-4 mb-4">
+      <div class="hole" id="hole0"><canvas id="mole0" width="80" height="80"></canvas></div>
+      <div class="hole" id="hole1"><canvas id="mole1" width="80" height="80"></canvas></div>
+      <div class="hole" id="hole2"><canvas id="mole2" width="80" height="80"></canvas></div>
+      <div class="hole" id="hole3"><canvas id="mole3" width="80" height="80"></canvas></div>
+      <div class="hole" id="hole4"><canvas id="mole4" width="80" height="80"></canvas></div>
+      <div class="hole" id="hole5"><canvas id="mole5" width="80" height="80"></canvas></div>
+      <div class="hole" id="hole6"><canvas id="mole6" width="80" height="80"></canvas></div>
+      <div class="hole" id="hole7"><canvas id="mole7" width="80" height="80"></canvas></div>
+      <div class="hole" id="hole8"><canvas id="mole8" width="80" height="80"></canvas></div>
+    </div>
+    <button id="start-btn">開始遊戲</button>
+  </div>
+
+  <script>
+    const holes = document.querySelectorAll('.hole');
+    const scoreDisplay = document.getElementById('score');
+    const timeDisplay = document.getElementById('time');
+    const startBtn = document.getElementById('start-btn');
+    let score = 0;
+    let timeLeft = 30;
+    let gameActive = false;
+    let moleTimer;
+    let countdown;
+
+    // 繪製地鼠
+    function drawMole(canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 頭部
+      ctx.beginPath();
+      ctx.arc(40, 40, 30, 0, Math.PI * 2);
+      ctx.fillStyle = '#8b5a2b';
+      ctx.fill();
+      ctx.closePath();
+
+      // 耳朵
+      ctx.beginPath();
+      ctx.arc(20, 20, 10, 0, Math.PI * 2);
+      ctx.arc(60, 20, 10, 0, Math.PI * 2);
+      ctx.fillStyle = '#a67c00';
+      ctx.fill();
+      ctx.closePath();
+
+      // 眼睛
+      ctx.beginPath();
+      ctx.arc(30, 35, 5, 0, Math.PI * 2);
+      ctx.arc(50, 35, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#000';
+      ctx.fill();
+      ctx.closePath();
+
+      // 鼻子
+      ctx.beginPath();
+      ctx.arc(40, 45, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff4040';
+      ctx.fill();
+      ctx.closePath();
+
+      // 鬍鬚
+      ctx.beginPath();
+      ctx.moveTo(30, 48);
+      ctx.lineTo(20, 48);
+      ctx.moveTo(30, 50);
+      ctx.lineTo(20, 50);
+      ctx.moveTo(50, 48);
+      ctx.lineTo(60, 48);
+      ctx.moveTo(50, 50);
+      ctx.lineTo(60, 50);
+      ctx.strokeStyle = '#000';
+      ctx.stroke();
+      ctx.closePath();
+    }
+
+    // 初始化所有地鼠畫布
+    for (let i = 0; i < 9; i++) {
+      drawMole(document.getElementById(`mole${i}`));
+    }
+
+    // 隨機顯示地鼠
+    function showMole() {
+      if (!gameActive) return;
+      const randomHole = Math.floor(Math.random() * holes.length);
+      const canvas = document.getElementById(`mole${randomHole}`);
+      canvas.style.display = 'block';
+      setTimeout(() => {
+        canvas.style.display = 'none';
+        showMole();
+      }, 800);
+    }
+
+    // 點擊地鼠計分
+    holes.forEach((hole, index) => {
+      hole.addEventListener('click', () => {
+        const canvas = document.getElementById(`mole${index}`);
+        if (canvas.style.display === 'block' && gameActive) {
+          score++;
+          scoreDisplay.textContent = `分數: ${score}`;
+          canvas.style.display = 'none';
+        }
+      });
+    });
+
+    // 倒數計時
+    function startCountdown() {
+      countdown = setInterval(() => {
+        timeLeft--;
+        timeDisplay.textContent = `時間: ${timeLeft}`;
+        if (timeLeft <= 0) {
+          clearInterval(countdown);
+          clearInterval(moleTimer);
+          gameActive = false;
+          startBtn.disabled = false;
+          startBtn.textContent = '重新開始';
+          alert(`遊戲結束！最終分數: ${score}`);
+        }
+      }, 1000);
+    }
+
+    // 開始遊戲
+    startBtn.addEventListener('click', () => {
+      if (gameActive) return;
+      gameActive = true;
+      score = 0;
+      timeLeft = 30;
+      scoreDisplay.textContent = `分數: ${score}`;
+      timeDisplay.textContent = `時間: ${timeLeft}`;
+      startBtn.textContent = '遊戲中...';
+      startBtn.disabled = true;
+      moleTimer = setInterval(showMole, 800);
+      startCountdown();
+    });
+  </script>
+</body>
+</html>
